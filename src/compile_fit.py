@@ -134,4 +134,75 @@ def compile_yaml(yaml_path: str, out_dir: str) -> Optional[str]:
 
     workout = WorkoutMessage()
     workout.workout_name = data["name"]
-    workout.sport = SPORT
+    workout.sport = SPORT_MAP.get(folder_sport, Sport.GENERIC)
+    if "sub_sport" in data:
+        workout.sub_sport = SUB_SPORT_MAP.get(data["sub_sport"].lower(), SubSport.GENERIC)
+    workout.num_valid_steps = len(steps)
+    builder.add(workout)
+
+    for s in steps:
+        builder.add(s)
+
+    slug = os.path.splitext(os.path.basename(yaml_path))[0]
+    out_path = os.path.join(out_dir, f"{folder_sport}-{slug}.fit")
+    builder.build().to_file(out_path)
+    print(f"Built {out_path} ({folder_sport})")
+    return folder_sport
+
+
+def write_deterministic_zip(zip_path: str, file_paths: list[str]) -> None:
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for fp in sorted(file_paths):
+            info = zipfile.ZipInfo(filename=os.path.basename(fp), date_time=(2026, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            with open(fp, "rb") as f:
+                zf.writestr(info, f.read())
+
+
+if __name__ == "__main__":
+    os.makedirs("dist", exist_ok=True)
+    for old_artifact in glob.glob("dist/*"):
+        os.remove(old_artifact)
+
+    by_sport: dict[str, list[str]] = defaultdict(list)
+    skipped = []
+
+    for path in sorted(glob.glob("workouts/*/*.yaml")):
+        sport = compile_yaml(path, "dist")
+        if sport:
+            slug = os.path.splitext(os.path.basename(path))[0]
+            by_sport[sport].append(os.path.join("dist", f"{sport}-{slug}.fit"))
+        else:
+            skipped.append(path)
+
+    all_fits: list[str] = []
+    for sport, fit_files in sorted(by_sport.items()):
+        zip_path = os.path.join("dist", f"{sport}-workouts.zip")
+        write_deterministic_zip(zip_path, fit_files)
+        print(f"Packaged {zip_path} ({len(fit_files)} file(s))")
+        all_fits.extend(fit_files)
+
+    if all_fits:
+        all_zip_path = os.path.join("dist", "all-workouts.zip")
+        write_deterministic_zip(all_zip_path, all_fits)
+        print(f"Packaged {all_zip_path} ({len(all_fits)} file(s))")
+
+    lines = ["### Compiled Workouts Summary", ""]
+    for sport, fit_files in sorted(by_sport.items()):
+        lines.append(f"- **{sport.capitalize()}:** {len(fit_files)} (`{sport}-workouts.zip`)")
+    lines.append(f"- **Total:** {len(all_fits)} (`all-workouts.zip`)")
+
+    if skipped:
+        lines.extend(["", "### Skipped (Sport Mismatch)", ""])
+        for s in skipped:
+            lines.append(f"- `{s}`")
+
+    summary_md = "\n".join(lines) + "\n"
+
+    with open("release_notes.md", "w", encoding="utf-8") as f:
+        f.write(summary_md)
+
+    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if step_summary:
+        with open(step_summary, "a", encoding="utf-8") as f:
+            f.write(summary_md)
