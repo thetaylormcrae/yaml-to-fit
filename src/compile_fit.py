@@ -1,9 +1,10 @@
-from collections import Counter
+from collections import defaultdict
 import datetime
 import glob
 import os
 import re
 from typing import Optional
+import zipfile
 import yaml
 from fit_tool.fit_file_builder import FitFileBuilder
 from fit_tool.profile.messages.file_id_message import FileIdMessage
@@ -133,52 +134,4 @@ def compile_yaml(yaml_path: str, out_dir: str) -> Optional[str]:
 
     workout = WorkoutMessage()
     workout.workout_name = data["name"]
-    workout.sport = SPORT_MAP.get(folder_sport, Sport.GENERIC)
-    if "sub_sport" in data:
-        workout.sub_sport = SUB_SPORT_MAP.get(data["sub_sport"].lower(), SubSport.GENERIC)
-    workout.num_valid_steps = len(steps)
-    builder.add(workout)
-
-    for s in steps:
-        builder.add(s)
-
-    slug = os.path.splitext(os.path.basename(yaml_path))[0]
-    out_path = os.path.join(out_dir, f"{folder_sport}-{slug}.fit")
-    builder.build().to_file(out_path)
-    print(f"Built {out_path} ({folder_sport})")
-    return folder_sport
-
-
-if __name__ == "__main__":
-    os.makedirs("dist", exist_ok=True)
-    for old_fit in glob.glob("dist/*.fit"):
-        os.remove(old_fit)
-
-    counts = Counter()
-    skipped = []
-    for path in sorted(glob.glob("workouts/*/*.yaml")):
-        sport = compile_yaml(path, "dist")
-        if sport:
-            counts[sport] += 1
-        else:
-            skipped.append(path)
-
-    lines = ["### Compiled Workouts Summary", ""]
-    for sport, count in sorted(counts.items()):
-        lines.append(f"- **{sport.capitalize()}:** {count}")
-    lines.append(f"- **Total:** {sum(counts.values())}")
-
-    if skipped:
-        lines.extend(["", "### Skipped (Sport Mismatch)", ""])
-        for s in skipped:
-            lines.append(f"- `{s}`")
-
-    summary_md = "\n".join(lines) + "\n"
-
-    with open("release_notes.md", "w", encoding="utf-8") as f:
-        f.write(summary_md)
-
-    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if step_summary:
-        with open(step_summary, "a", encoding="utf-8") as f:
-            f.write(summary_md)
+    workout.sport = SPORT
