@@ -4,7 +4,7 @@ sport: running
 steps:
   - type: warmup
     duration: 10m
-  - repeat: 7
+  - repeat: 10
     steps:
       - type: active
         name: "2:00 On"
