@@ -5,18 +5,19 @@ Lightweight YAML-to-`.fit` workout compiler built for GPS watches that support s
 ## Features
 
 - **Declarative YAML Schema:** Define warm-ups, intervals, repeat blocks, and cool-downs in plain text without proprietary platforms.
-- **Multi-Sport Organization:** Group workouts into sport-specific folders (`running`, `cycling`, `walking`, etc.) with automatic cross-checking between folder names and YAML declarations.
+- **Multi-Sport Organization & Validation:** Group workouts into sport-specific folders (`running`, `cycling`, `walking`, etc.) with pre-build schema linting and automatic cross-checking between folder names and YAML declarations.
 - **Open-Target Execution:** Compiles every step with open effort targets so your watch alerts you cleanly on interval transitions without nagging you with live pace alarms.
-- **Automated GitHub Releases:** Every push to `main` compiles updated workouts into `.fit` binaries and publishes them under a deterministic CalVer + content-hash release tag (`vYYYY.MM.DD-<hash>`).
+- **Automated GitHub Releases & Zip Bundles:** Every push to `main` compiles updated workouts into individual `.fit` binaries plus per-sport `.zip` bundles (`running-workouts.zip`, `cycling-workouts.zip`, `all-workouts.zip`) under a deterministic CalVer + content-hash release tag (`vYYYY.MM.DD-<hash>`).
 
 ## Repository Structure
 
 ```text
 ├── .github/
 │   └── workflows/
-│       └── build-workouts.yml   # CI pipeline for compiling & publishing GitHub Releases
+│       └── build-workouts.yml   # CI pipeline for validation, compilation & releases
 ├── src/
-│   └── compile_fit.py           # Python compiler using fit-tool and PyYAML
+│   ├── validate_workouts.py     # Pre-build YAML schema & sport-folder validator
+│   └── compile_fit.py           # Python compiler & deterministic zip packager
 ├── workouts/
 │   ├── running/
 │   │   └── 2on-2off.yaml
@@ -54,13 +55,13 @@ steps:
     duration: 5m
 ```
 
-> **Sport Validation Rule:** Every YAML file must explicitly include a `sport:` field matching its parent folder name (`running`, `cycling`, `walking`, etc.). If the declared `sport:` does not match the directory name, the file is skipped and flagged in the build summary.
+> **Sport Validation Rule:** Every YAML file must explicitly include a `sport:` field matching its parent folder name (`running`, `cycling`, `walking`, etc.). Malformed files or sport mismatches fail validation in CI before compilation.
 
 ### 2. Compile via GitHub Actions (Recommended)
 
 1. Commit and push your YAML file to the `main` branch (or trigger **Build FIT Workouts** manually from the **Actions** tab).
-2. Open the **Releases** page in this repository to view the compiled sport breakdown and download the generated `<sport>-<filename>.fit` assets.
-3. Transfer the `.fit` file(s) to your watch's `Workouts` directory via USB or your watch's companion app.
+2. Open the **Releases** page in this repository to view the compiled sport breakdown and download either individual `<sport>-<filename>.fit` files or a full `<sport>-workouts.zip` / `all-workouts.zip` bundle.
+3. Extract and transfer the `.fit` file(s) to your watch's `Workouts` directory via USB or your watch's companion app.
 
 ### 3. Compile Locally
 
@@ -68,10 +69,11 @@ Requires Python 3.9 or newer.
 
 ```bash
 pip install -r requirements.txt
+python src/validate_workouts.py
 python src/compile_fit.py
 ```
 
-Compiled `.fit` files are written to `dist/` alongside a summary in `release_notes.md`.
+Compiled `.fit` files and `.zip` archives are written to `dist/` alongside a summary in `release_notes.md`.
 
 ## YAML Schema Reference
 

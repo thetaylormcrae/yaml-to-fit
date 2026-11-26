@@ -1,0 +1,37 @@
+name: Validate Workout PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'workouts/**/*.yaml'
+      - 'src/validate_workouts.py'
+      - 'src/compile_fit.py'
+      - 'requirements.txt'
+      - '.github/workflows/validate-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate workout YAML schemas
+        run: python src/validate_workouts.py
+
+      - name: Dry-run FIT compilation
+        run: python src/compile_fit.py
