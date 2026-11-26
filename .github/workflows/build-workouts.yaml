@@ -61,6 +61,7 @@ jobs:
           name: "Workouts ${{ steps.version.outputs.tag }}"
           body_path: release_notes.md
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             dist/*.fit
             dist/*.zip
