@@ -1,0 +1,64 @@
+name: Build FIT Workouts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workouts/**/*.yaml'
+      - 'src/validate_workouts.py'
+      - 'src/compile_fit.py'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate workout YAML schemas
+        run: python src/validate_workouts.py
+
+      - name: Compile YAML to FIT
+        run: python src/compile_fit.py
+
+      - name: Generate Content-Addressed CalVer tag
+        id: version
+        run: |
+          HASH=$(sha256sum workouts/*/*.yaml src/compile_fit.py | sha256sum | cut -c1-7)
+          echo "tag=v$(date -u +'%Y.%m.%d')-${HASH}" >> $GITHUB_OUTPUT
+
+      - name: Check if release tag already exists
+        id: tag_check
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Workouts ${{ steps.version.outputs.tag }}"
+          body_path: release_notes.md
+          generate_release_notes: true
+          files: dist/*.fit
