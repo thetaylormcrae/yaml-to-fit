@@ -9,14 +9,18 @@ on:
       - 'src/validate_workouts.py'
       - 'src/compile_fit.py'
       - 'requirements.txt'
+      - '.github/workflows/build-workouts.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      exists: ${{ steps.version.outputs.exists }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,27 +42,46 @@ jobs:
       - name: Compile YAML to FIT
         run: python src/compile_fit.py
 
-      - name: Generate Content-Addressed CalVer tag
+      - name: Check if content hash already released
         id: version
         run: |
           HASH=$(sha256sum workouts/*/*.yaml src/compile_fit.py | sha256sum | cut -c1-7)
-          echo "tag=v$(date -u +'%Y.%m.%d')-${HASH}" >> $GITHUB_OUTPUT
-
-      - name: Check if release tag already exists
-        id: tag_check
-        run: |
-          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+          EXISTING=$(git tag -l "*-${HASH}")
+          if [ -n "$EXISTING" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
+            echo "tag=v$(date -u +'%Y.%m.%d').${{ github.run_number }}-${HASH}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Upload compiled artifacts
+        if: steps.version.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workout-release-bundle
+          path: |
+            dist/*.fit
+            dist/*.zip
+            release_notes.md
+          retention-days: 1
+
+  release:
+    needs: build
+    if: needs.build.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download compiled artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: workout-release-bundle
+
       - name: Create GitHub Release
-        if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "Workouts ${{ steps.version.outputs.tag }}"
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: "Workouts ${{ needs.build.outputs.tag }}"
           body_path: release_notes.md
           generate_release_notes: true
           fail_on_unmatched_files: true
