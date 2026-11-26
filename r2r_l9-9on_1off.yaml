@@ -1,0 +1,16 @@
+---
+name: "R2R_L9 | 9min On 1min Off"
+sport: running
+steps:
+  - type: warmup
+    duration: 10m
+  - repeat: 6
+    steps:
+      - type: active
+        name: "9:00 On"
+        duration: 9m
+      - type: rest
+        name: "1:00 Off"
+        duration: 1m
+  - type: cooldown
+    duration: 5m
